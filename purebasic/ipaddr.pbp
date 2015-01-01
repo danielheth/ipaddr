@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 5.31 (Linux - x64)">
+  <section name="config">
+    <options closefiles="1" openmode="0" name="ipaddr"/>
+    <comment>Command line utiity to return the ip address of your workstation.</comment>
+  </section>
+  <section name="data">
+    <explorer view="C:/Program Files (x86)/PureBasic/Examples/" pattern="0"/>
+    <log show="1"/>
+    <lastopen date="2014-12-31 09:12" user="daniel" host="centosvm64"/>
+  </section>
+  <section name="files">
+    <file name="Include.pb">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
+      <fingerprint md5="c79e786f2847b27c6e81d3282f4271db"/>
+    </file>
+    <file name="include/api/Configuration.pbi">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" panelstate="++-"/>
+      <fingerprint md5="01a941e2953bb47f936903ccf628c924"/>
+    </file>
+    <file name="include/CommonCore.pbi">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="++"/>
+      <fingerprint md5="38f450ed628678d6694b1a54d2d3304e"/>
+    </file>
+    <file name="include/GlobalIP.pbi">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" panelstate="++"/>
+      <fingerprint md5="60d8207360065b8e98b8f9b66c4cc9c9"/>
+    </file>
+    <file name="include/Parameters.pbi">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" panelstate="++"/>
+      <fingerprint md5="fc7d6c56ffd052ca48713f6ba892663c"/>
+    </file>
+    <file name="include/String.pbi">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" panelstate="++"/>
+      <fingerprint md5="9718997da78679e03a250b32ef8c5193"/>
+    </file>
+    <file name="Main.pb">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
+      <fingerprint md5="61c6d33ddd89a7b7ddcf6fe13ce4f254"/>
+    </file>
+  </section>
+  <section name="targets">
+    <target name="Windows" enabled="1" default="1">
+      <inputfile value="Main.pb"/>
+      <outputfile value="bin\win\ipaddr.exe"/>
+      <compiler version="PureBasic 5.31 (Linux - x64)"/>
+      <executable value="bin/win/ipaddr.exe"/>
+      <options unicode="1" xpskin="1" debug="1"/>
+      <format exe="console" cpu="0"/>
+      <compilecount enable="1" value="25"/>
+      <buildcount enable="1" value="24"/>
+    </target>
+    <target name="Linux 64bit" enabled="1" default="0">
+      <inputfile value="Main.pb"/>
+      <outputfile value="bin/lin64/ipaddr"/>
+      <compiler version="PureBasic 5.31 (Linux - x64)"/>
+      <executable value="bin/lin64/ipaddr"/>
+      <options unicode="1" debug="1"/>
+      <format exe="console" cpu="0"/>
+      <compilecount enable="1" value="1"/>
+      <buildcount enable="1" value="1"/>
+    </target>
+  </section>
+</project>

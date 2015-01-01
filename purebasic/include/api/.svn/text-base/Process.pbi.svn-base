@@ -1,0 +1,452 @@
+﻿EnableExplicit
+
+XIncludeFile "Configuration.pbi"
+
+#MUTEX_LOCKED = -1
+#MUTEX_TIMEDOUT = -2
+#MUTEX_ERROR = -3
+
+Structure ProcessInfo
+  Id.i
+  ParentId.i
+  FileName.s
+  Threads.i
+  CPU.s
+EndStructure
+
+  
+Structure ColumnsInfo
+  Start.l
+  Length.l
+EndStructure
+
+Procedure.l GetProcessId()
+  Protected vPid.l = 0  
+  
+  CompilerSelect #PB_Compiler_OS
+    CompilerCase #PB_OS_Windows
+      vPid = GetCurrentProcessId_()
+    CompilerCase #PB_OS_Linux
+      vPid = getpid_()
+    CompilerCase #PB_OS_MacOS
+      vPid = getpid_()
+  CompilerEndSelect
+  
+  ProcedureReturn vPid
+  
+EndProcedure
+
+Procedure.b GetProcessList(List ProcessList.ProcessInfo(), id.i = #Null, parentId.i = #Null, fileName.s = #NULL$)
+  Protected vReturn.b = #True
+  Protected vId.i, vParentId.i, vCPU.s, vFileName.s, vMatch.b
+  
+  ClearList(ProcessList())
+  
+  CompilerIf #PB_Compiler_OS = #PB_OS_Windows
+    Protected.i hLib = OpenLibrary(#PB_Any, "kernel32.dll")
+    If hLib
+      Protected.i hSnapShot = CallFunction(hLib, "CreateToolhelp32Snapshot", #TH32CS_SNAPPROCESS, 0)
+      If hSnapShot
+        Protected.PROCESSENTRY32 vProc32
+        vProc32\dwSize = SizeOf(PROCESSENTRY32)
+        If CallFunction(hLib, "Process32First", hSnapShot, @vProc32)
+          While CallFunction(hLib, "Process32Next", hSnapShot, @vProc32)
+            vId = vProc32\th32ProcessID
+            vParentId = vProc32\th32ParentProcessID
+            vCPU = "" ;TODO DHM Add CPU usage for windows
+            vFileName = PeekS(@vProc32\szExeFile, -1, #PB_Ascii)
+            vMatch = #True
+            
+            If id <> #Null And vId <> id: vMatch = #False: EndIf
+            If parentId <> #Null And vParentId <> parentId: vMatch = #False: EndIf
+            If fileName <> #NULL$ And LCase(fileName) <> LCase(vFileName): vMatch = #False: EndIf
+            
+            If vMatch
+              AddElement(ProcessList())
+              ProcessList()\Id = vId
+              ProcessList()\ParentId = vProc32\th32ParentProcessID
+              ProcessList()\CPU = vCPU
+              ProcessList()\FileName = vFileName
+              ProcessList()\Threads = vProc32\cntThreads
+            EndIf
+          Wend
+        EndIf
+        CloseHandle_(hSnapShot)
+      EndIf
+      CloseLibrary(hLib)
+    EndIf
+  
+  CompilerElse
+    
+    ;-- CHECK RUNNING PROCESS --
+    Protected vCompiler = RunProgram("ps", "axo pid,ppid,%cpu,command", "/bin", #PB_Program_Open | #PB_Program_Read)
+    Protected resLength.l = 0
+    Dim Results.s(0)
+    
+    
+    If vCompiler
+      ;WriteLog(gConfig\CommandId, #TCT_LOG_LEVEL_DEBUG, "Scanning running processes")
+      While ProgramRunning(vCompiler)
+        If AvailableProgramOutput(vCompiler)    
+          ReDim Results(resLength)
+          Results(resLength) = ReadProgramString(vCompiler)
+          resLength = resLength + 1
+        EndIf
+      Wend ;"Exitcode: " + Str(ProgramExitCode(vCompiler))
+      CloseProgram(vCompiler) ; Close the connection to the program
+      resLength = resLength - 1
+      
+      
+      ;Now all output is within the Results array, now we need to process to determine position and width of each column
+      ;LINUX::   PID  PPID %CPU COMMAND
+      ;  MAC::   PID  PPID  %CPU COMMAND
+      Dim Columns.ColumnsInfo(4)
+      Protected i.l = 0
+      
+      Columns(0)\Start = 0
+      Columns(1)\Start = FindString( Results(0), "PID" ) + 3
+      Columns(2)\Start = FindString( Results(0), "PPID" ) + 4
+      Columns(3)\Start = FindString( Results(0), "%CPU" ) + 4
+      
+      Columns(0)\Length = Columns(1)\Start
+      Columns(1)\Length = Columns(2)\Start - Columns(1)\Start
+      Columns(2)\Length = Columns(3)\Start - Columns(2)\Start
+      Columns(3)\Length = Len( Results(0) ) - Columns(3)\Start
+      For i = 1 To resLength
+        If ( Len( Results(i) ) - Columns(3)\Start ) > Columns(3)\Length
+          Columns(3)\Length = Len( Results(i) ) - Columns(3)\Start
+        EndIf
+      Next
+      
+      ;PrintN( "Column 0::" + Columns(0)\Start + "::" + Columns(0)\Length )
+      ;PrintN( "Column 1::" + Columns(1)\Start + "::" + Columns(1)\Length )
+      ;PrintN( "Column 2::" + Columns(2)\Start + "::" + Columns(2)\Length )
+      ;PrintN( "Column 3::" + Columns(3)\Start + "::" + Columns(3)\Length )
+      
+      ;PrintN( Results(0) )
+      For i = 1 To resLength
+        ;PrintN( "-----------------------" )
+        ;PrintN( Results(i) )
+        ;PrintN( " PID=" + Trim( Mid( Results(i), Columns(0)\Start, Columns(0)\Length ) ) )
+        ;PrintN( "PPID=" + Trim( Mid( Results(i), Columns(1)\Start, Columns(1)\Length ) ) )
+        ;PrintN( "%CPU=" + Trim( Mid( Results(i), Columns(2)\Start, Columns(2)\Length ) ) )
+        ;PrintN( " CMD=" + Trim( Mid( Results(i), Columns(3)\Start, Columns(3)\Length ) ) )
+        
+        vId = Val( Trim( Mid( Results(i), Columns(0)\Start, Columns(0)\Length ) ) )
+        vParentId = Val( Trim( Mid( Results(i), Columns(1)\Start, Columns(1)\Length ) ) )
+        vCPU = Trim( Mid( Results(i), Columns(2)\Start, Columns(2)\Length ) )
+        vFileName = Trim( Mid( Results(i), Columns(3)\Start, Columns(3)\Length ) )
+        
+        vMatch = #True
+        
+        If id <> #Null And vId <> id: vMatch = #False: EndIf
+        If parentId <> #Null And vParentId <> parentId: vMatch = #False: EndIf
+        If fileName <> #NULL$ And LCase(fileName) <> LCase(vFileName): vMatch = #False: EndIf
+        
+        If vMatch
+          ;WriteLog(gConfig\CommandId, #TCT_LOG_LEVEL_DEBUG, vId + "|" + vCPU + "|" + vFileName)
+          AddElement(ProcessList())
+          ProcessList()\Id = vId
+          ProcessList()\ParentId = vParentId
+          ProcessList()\CPU = vCPU
+          ProcessList()\FileName = vFileName
+          ProcessList()\Threads = 0 ;TODO DHM find way To add threads
+        EndIf
+      Next
+     
+    Else
+      StdErr("Unable to start external application.")
+    EndIf
+    
+  CompilerEndIf
+  
+  ResetList(ProcessList())
+  
+  If ListSize(ProcessList()) <> 0
+    ProcedureReturn #True
+  Else
+    ProcedureReturn #False
+  EndIf
+EndProcedure
+
+Declare.i GetAppMutex(vName.s)
+Declare.b ReleaseAppMutex(vName.s)
+
+#TCT_APPMUTEX_OK = 1
+#TCT_APPMUTEX_CLAIMED = 2
+#TCT_APPMUTEX_BUSY = 3
+#TCT_APPMUTEX_UNAVAILABLE = 4
+
+; Returns 
+Procedure.i GetAppMutex(vName.s)
+  
+  Protected.i hFile = 0
+  Protected.s vFile = GetAppPath() + vName
+  ;Protected.i vTimeout = AddDate(Date(), #PB_Date_Second, vTimeoutSeconds)
+  
+  If FileSize(vFile) = -1  ; Create new Mutex
+    hFile.i = CreateFile(#PB_Any, vFile, #PB_File_NoBuffering)
+    WriteString(hFile, Str(GetProcessId()))
+    CloseFile(hFile)
+    ProcedureReturn #TCT_APPMUTEX_OK
+  Else
+    hFile = ReadFile(#PB_Any, vFile)
+    If hFile
+      Protected.i vMutexPid = Val(ReadString(hFile))
+      CloseFile(hFile)
+      If vMutexPid = GetProcessId()
+        ProcedureReturn #TCT_APPMUTEX_BUSY
+      EndIf
+      
+      NewList ProcessList.ProcessInfo()
+      If GetProcessList(ProcessList(), vMutexPid, #Null, "tct.exe")
+        ProcedureReturn #TCT_APPMUTEX_BUSY
+      Else
+        If ReleaseAppMutex("File")
+          If GetAppMutex("File") = #TCT_APPMUTEX_OK
+            ProcedureReturn #TCT_APPMUTEX_CLAIMED
+          EndIf
+        EndIf
+      EndIf
+    EndIf    
+  EndIf
+  
+  ProcedureReturn #TCT_APPMUTEX_UNAVAILABLE
+EndProcedure
+
+; Return true if the Mutex was closed
+Procedure.b ReleaseAppMutex(vName.s)
+  Protected.s vFile = GetAppPath() + vName
+  
+  If FileSize(vFile) > 0
+    If DeleteFile(vFile, #PB_FileSystem_Force)
+      ProcedureReturn #True
+    EndIf
+  EndIf
+  
+  ProcedureReturn #False
+EndProcedure
+
+
+
+
+CompilerIf #PB_Compiler_OS = #PB_OS_Windows
+  
+  Procedure.d CpuThrottle(vSpeed.f = 0)
+    Static LastProcessTime.l = 0
+    Static LastSystemTime.l = 0
+    Static dCpuUsage.f
+    Static pid.i = 0
+    Static dCpuSpeed.f = 15
+    
+    If vSpeed > 0
+      dCpuSpeed = vSpeed
+    EndIf
+    
+    If dCpuSpeed < 0.1 Or dCpuSpeed > 99
+      ProcedureReturn 0
+    EndIf
+    
+    If pid = 0
+      pid = GetCurrentProcessId_()
+    EndIf
+     
+    Protected iCores =  CountCPUs(#PB_System_CPUs)
+    Protected hProcess = OpenProcess_(#PROCESS_QUERY_INFORMATION, #False, pid)
+    
+    If (hProcess)
+      Protected CurrentProcessTime.l, CurrentSystemTime.l
+      Protected ftCreationTime.FILETIME , ftExitTime.FILETIME , ftKernelTime.FILETIME , ftUserTime.FILETIME
+      Protected KernelTime.ULARGE_INTEGER , UserTime.ULARGE_INTEGER
+     
+      If GetProcessTimes_(hProcess, @ftCreationTime, @ftExitTime, @ftKernelTime, @ftUserTime)   
+        KernelTime\HighPart = ftKernelTime\dwHighDateTime
+        KernelTime\LowPart = ftKernelTime\dwLowDateTime
+        UserTime\HighPart = ftUserTime\dwHighDateTime
+        UserTime\LowPart = ftUserTime\dwLowDateTime
+  
+        CurrentProcessTime = (PeekQ(@KernelTime) + PeekQ(@UserTime)) / (iCores * 100)
+        CurrentSystemTime = GetTickCount_() ; use GetTickCount64() if needed
+  
+        If(LastSystemTime)
+          dCpuUsage = (CurrentProcessTime - LastProcessTime + 0.0) / (CurrentSystemTime - LastSystemTime)
+          If CurrentSystemTime - LastSystemTime > 3000 ; smoothing 
+            LastSystemTime = 0
+            LastProcessTime = 0
+          EndIf
+        Else
+          LastProcessTime = CurrentProcessTime
+          LastSystemTime = CurrentSystemTime
+        EndIf
+      EndIf   
+     
+      CloseHandle_(hProcess)
+      
+      If dCpuUsage > dCpuSpeed
+        Delay(10)
+      EndIf
+         
+      ProcedureReturn dCpuUsage
+    EndIf
+  
+    ProcedureReturn -1 ; wrong PID
+  EndProcedure
+  
+  
+  
+  
+CompilerElseIf #PB_Compiler_OS = #PB_OS_Linux
+  
+  Global utime_before.f, stime_before.f, time_total_before.f, pid.i
+  Procedure.d CpuThrottle(vSpeed.d = 0)
+    Static dCpuSpeed.f = 15
+    Static dCpuUsage.f
+    Protected diff.i = 0
+    
+    If vSpeed > 0
+      dCpuSpeed = vSpeed
+    EndIf
+    
+    If dCpuSpeed < 0.1 Or dCpuSpeed > 99
+      ProcedureReturn 0
+    EndIf
+    
+    If pid = 0
+      pid = getpid_()
+    EndIf
+    
+    Protected utime_after.f, stime_after.f, time_total_after.f
+    Protected user_util.f, sys_util.f, new_string.s
+    Protected vLine.s, num_occurances.l, counter.l
+    
+    utime_after = 0
+    stime_after = 0
+    time_total_after = 0
+    
+    ;read current process
+    If ReadFile(0, "/proc/" + Str(pid) + "/stat")
+      While Eof(0) = 0 ;11253 (TaniumClient) S 1 11253 11253 0 -1 4202816 100142 401063 0 0 1714 205 45 110 20 0 8 0 1392510 137097216 4703 4294967295 1 1 0 0 0 0 0 0 24579 4294967295 0 0 17 1 0 0 0 0 0
+        vLine = ReadString(0)
+      Wend
+      CloseFile(0)
+      utime_after = ValF( StringField(vLine, 14, " ") )
+      stime_after = ValF( StringField(vLine, 15, " ") )
+      
+      
+      If ReadFile(0, "/proc/stat")
+        While Eof(0) = 0  ;cpu  13104 40 8240 3656965 412 310 477 0 0
+          vLine = ReadString(0)
+          If Left( Trim(vLine), 3) = "cpu"
+            Break;
+          EndIf
+        Wend
+        CloseFile(0)
+        
+        time_total_after = 0
+        num_occurances = CountString(Trim(vLine)," ")
+        Dim a_explode.s(num_occurances)
+        For counter = 1 To num_occurances
+          new_string = StringField(vLine, counter + 1, " ")
+          ;StdOut("new_string=" + new_string)
+          If Trim(new_string) <> ""
+            time_total_after = time_total_after + ValF(new_string)
+          EndIf    
+        Next
+        
+        ;StdOut("time_total_after=" + time_total_after)
+        
+        
+        If utime_before = 0 Or stime_before = 0 Or time_total_before = 0
+          utime_before = utime_after
+          stime_before = stime_after
+          time_total_before = time_total_after
+          
+          ;StdOut("Initial values stored")
+          ;StdOut("utime_before = " + StrF(utime_before))
+          ;StdOut("stime_before = " + StrF(stime_before))
+          ;StdOut("time_total_before = " + StrF(time_total_before))
+          
+          
+        Else
+          user_util = 100 * (utime_after - utime_before) / (time_total_after - time_total_before)  
+          sys_util = 100 * (stime_after - stime_before) / (time_total_after - time_total_before)  
+          
+          dCpuUsage = (user_util + sys_util) * 2
+          
+          ;StdOut("user_util = " + StrF(user_util) + " = 100 * (" + StrF(utime_after) + " - " + StrF(utime_before) + ") / (" + StrF(time_total_after) + " - " + StrF(time_total_before) + ")" )
+          ;StdOut("sys_util = " + StrF(sys_util) + " = 100 * (" + StrF(stime_after) + " - " + StrF(stime_before) + ") / (" + StrF(time_total_after) + " - " + StrF(time_total_before) + ")" )
+          
+          If dCpuUsage > dCpuSpeed
+            diff = (dCpuUsage - dCpuSpeed) * 10
+            
+            ;StdOut("Delaying (" + Str(diff) + " ms) due To high cpu (" + StrF(dCpuUsage) + ")")
+            WriteLog(gConfig\CommandId, #TCT_LOG_LEVEL_DEBUG, "Delaying (" + Str(diff) + " ms) due To high cpu (" + StrF(dCpuUsage) + ")")
+            
+            Delay(diff)
+          EndIf
+          
+        EndIf 
+      Else
+        StdErr("Error: unable to read /proc/stat")
+      EndIf
+      
+      
+      
+    Else
+      StdErr("Error: unable to read /proc/" + Str(pid) + "/stat")
+    EndIf
+  EndProcedure
+  
+  
+CompilerElseIf #PB_Compiler_OS = #PB_OS_MacOS
+  
+  
+  
+  ;TODO DHM Add CpuThrottling capability
+  Procedure.d CpuThrottle(vSpeed.d = 0)
+    Static dCpuSpeed.f = 15
+    Static pid.i = 0
+    Static dCpuUsage.f
+    Protected diff.i = 0
+    
+    If vSpeed > 0
+      dCpuSpeed = vSpeed
+    EndIf
+    
+    If dCpuSpeed < 0.1 Or dCpuSpeed > 99
+      ProcedureReturn 0
+    EndIf
+    
+    If pid = 0
+      pid = getpid_()
+    EndIf
+    
+    Protected NewList ProcessList.ProcessInfo()
+    If GetProcessList(ProcessList(),pid)
+      ForEach ProcessList()
+        dCpuUsage = ValF( ProcessList()\CPU )
+      Next  
+      ;StdOut( StrF(dCpuUsage) + " > " + StrF(dCpuSpeed) )
+      If dCpuUsage > dCpuSpeed
+        diff = (dCpuUsage - dCpuSpeed) * 10
+        
+        WriteLog(gConfig\CommandId, #TCT_LOG_LEVEL_DEBUG, "Delaying (" + diff + " ms) due To high cpu (" + dCpuUsage + ")")
+        
+        Delay(diff)
+      EndIf
+    EndIf
+    
+    ProcedureReturn dCpuUsage
+    
+    ;ProcedureReturn -1 ; wrong PID
+  EndProcedure 
+  
+  
+CompilerEndIf
+; IDE Options = PureBasic 5.30 (Linux - x86)
+; CursorPosition = 406
+; FirstLine = 338
+; Folding = m-
+; EnableUnicode
+; EnableXP
+; CompileSourceDirectory

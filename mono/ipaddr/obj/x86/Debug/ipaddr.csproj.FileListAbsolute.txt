@@ -1,0 +1,4 @@
+z:\daniel\workspace\ipaddr\ipaddr\ipaddr\bin\Debug\ipaddr.exe
+z:\daniel\workspace\ipaddr\ipaddr\ipaddr\bin\Debug\ipaddr.pdb
+z:\daniel\workspace\ipaddr\ipaddr\ipaddr\obj\x86\Debug\ipaddr.exe
+z:\daniel\workspace\ipaddr\ipaddr\ipaddr\obj\x86\Debug\ipaddr.pdb

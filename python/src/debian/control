@@ -1,0 +1,19 @@
+Source: ipaddr
+Section: python
+Priority: optional
+Maintainer: Daniel H Moran, <danielheth@hotmail.com>
+Build-Depends:	debhelper(>= 7),
+		python (>= 2.6.6-3~)
+Standards-Version: 3.9.5
+X-Python-Version: >= 2.6
+Homepage: https://danielheth.com
+Vcs-Git: git://github.com/danielheth/ipaddr.git
+Vcs-Browser: https://github.com/danielheth/ipaddr
+
+Package: ipaddr
+Architecture: all
+Section: python
+Depends: ${misc:Depends}, ${python:Depends}
+Description: Simple IP Address Report
+ Utility that returns private ip addresses, but also allows
+ reporting of public and hostname.
